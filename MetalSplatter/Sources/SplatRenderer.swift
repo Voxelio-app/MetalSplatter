@@ -6,6 +6,57 @@ import SplatIO
 import Synchronization
 
 public final class SplatRenderer: @unchecked Sendable {
+    public struct SplatAnimation: Sendable, Equatable {
+        public enum Mode: UInt32, Sendable {
+            case disabled = 0
+            case pointCloudReveal = 1
+        }
+
+        public var mode: Mode
+        public var center: SIMD3<Float>
+        public var radius: Float
+        public var progress: Float
+        public var feather: Float
+        public var pointScale: Float
+        public var pointAlpha: Float
+
+        public static let none = SplatAnimation(
+            mode: .disabled,
+            center: .zero,
+            radius: 1,
+            progress: 1,
+            feather: 0.04,
+            pointScale: 0.06,
+            pointAlpha: 0.75
+        )
+
+        /// Reveals points outward from `center`, then turns those points into full Gaussians in a second outward wave.
+        ///
+        /// - Parameters:
+        ///   - center: World-space center point where the Gaussian reveal starts.
+        ///   - radius: World-space distance covered when `progress == 1`.
+        ///   - progress: 0...1 animation progress. The first half reveals the point cloud; the second half reveals Gaussians.
+        ///   - feather: Width of the reveal wave as a normalized radius fraction.
+        ///   - pointScale: Screen-space point radius scale before the Gaussian reveal reaches a splat.
+        ///   - pointAlpha: Alpha multiplier after a point appears but before it turns into a full Gaussian.
+        public static func pointCloudReveal(center: SIMD3<Float>,
+                                            radius: Float,
+                                            progress: Float,
+                                            feather: Float = 0.04,
+                                            pointScale: Float = 0.06,
+                                            pointAlpha: Float = 0.75) -> SplatAnimation {
+            SplatAnimation(
+                mode: .pointCloudReveal,
+                center: center,
+                radius: max(radius, 0.0001),
+                progress: min(max(progress, 0), 1),
+                feather: max(feather, 0.0001),
+                pointScale: min(max(pointScale, 0.001), 1),
+                pointAlpha: min(max(pointAlpha, 0), 1)
+            )
+        }
+    }
+
     enum Constants {
         // Keep in sync with Shaders.metal : maxViewCount
         static let maxViewCount = 2
@@ -70,6 +121,11 @@ public final class SplatRenderer: @unchecked Sendable {
 
         var splatCount: UInt32
         var indexedSplatCount: UInt32
+
+        var animationCenterAndRadius: SIMD4<Float>
+        var animationParams: SIMD4<Float>      // progress, feather, pointScale, pointAlpha
+        var animationMode: UInt32
+        var _animationPadding: SIMD3<UInt32> = .zero
     }
 
     // Keep in sync with Shaders.metal : UniformsArray
@@ -117,6 +173,9 @@ public final class SplatRenderer: @unchecked Sendable {
      The color to clear the render target to before rendering splats.
      */
     public let clearColor: MTLClearColor
+
+    /// Optional per-frame animation applied in the vertex shader without modifying source splat data.
+    public var animation: SplatAnimation = .none
 
     private var writeDepth: Bool {
         depthFormat != .invalid
@@ -624,6 +683,7 @@ public final class SplatRenderer: @unchecked Sendable {
                                 indexedSplatCount: UInt32) {
         // Compute average camera position from all viewports
         let cameraPos = viewports.map { Self.cameraWorldPosition(forViewMatrix: $0.viewMatrix) }.mean ?? .zero
+        let animation = self.animation
 
         for (i, viewport) in viewports.enumerated() where i <= maxViewCount {
             // Precompute values for covariance projection
@@ -644,7 +704,20 @@ public final class SplatRenderer: @unchecked Sendable {
                                     tanHalfFovY: tanHalfFovY,
                                     chunkCount: chunkCount,
                                     splatCount: splatCount,
-                                    indexedSplatCount: indexedSplatCount)
+                                    indexedSplatCount: indexedSplatCount,
+                                    animationCenterAndRadius: SIMD4<Float>(
+                                        animation.center.x,
+                                        animation.center.y,
+                                        animation.center.z,
+                                        animation.radius
+                                    ),
+                                    animationParams: SIMD4<Float>(
+                                        animation.progress,
+                                        animation.feather,
+                                        animation.pointScale,
+                                        animation.pointAlpha
+                                    ),
+                                    animationMode: animation.mode.rawValue)
             renderState.uniforms.pointee.setUniforms(index: i, uniforms)
         }
     }

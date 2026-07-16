@@ -1,6 +1,11 @@
 # MetalSplatter
 Render 3D Gaussian Splats using Metal on Apple platforms (iOS/iPhone/iPad, macOS, and visionOS/Vision Pro)
 
+> [!NOTE]
+> This Voxelio fork adds an optional GPU-driven point-cloud-to-Gaussian reveal
+> animation while retaining the original renderer and file-format support. See
+> [VOXELIO_CHANGES.md](VOXELIO_CHANGES.md) for the public API and exact scope.
+
 ![A greek-style bust of a woman made of metal, wearing aviator-style goggles while gazing toward colorful abstract metallic blobs floating in space](http://metalsplatter.com/hero.640.jpg)
 
 This is a Swift/Metal library for rendering scenes captured via the techniques described in [3D Gaussian Splatting for Real-Time Radiance Field Rendering](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/). It will let you load up a PLY/SPZ/.splat and visualize it on iOS, macOS, and visionOS (using amplification for rendering in stereo on Vision Pro). Modules include

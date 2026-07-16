@@ -62,9 +62,15 @@ typedef struct
      The first N splats are represented as 2N primitives and 4N vertex indices. The remainder are represented
      as instances of these first N. This allows us to limit the size of the indexed array (and associated memory),
      but also avoid the performance penalty of a very large number of instances.
-     */
+    */
     uint splatCount;
     uint indexedSplatCount;
+
+    // Animation controls. mode: 0 = disabled, 1 = point cloud first, then Gaussian reveal.
+    float4 animationCenterAndRadius;
+    float4 animationParams; // progress, feather, pointScale, pointAlpha
+    uint animationMode;
+    uint3 _animationPadding;
 } Uniforms;
 
 typedef struct
